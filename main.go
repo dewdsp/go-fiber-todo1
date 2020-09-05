@@ -14,7 +14,7 @@ type Todo struct {
 	Completed bool   `json:"completed"`
 }
 
-var todos = []Todo{
+var todos = []*Todo{
 	{ID: 1, Name: "Walk the dog", Completed: false},
 	{ID: 2, Name: "Walk the cat", Completed: false},
 	{ID: 3, Name: "Walk the bat", Completed: true},
@@ -29,14 +29,24 @@ func main() {
 		ctx.Send("hello world")
 	})
 
-	app.Get("/todos", GetTodos)
-	app.Get("/todos/:id", GetTodo)
-	app.Post("/todos", CreateTodo)
-	app.Delete("/todos/:id", DeleteTodo)
-	app.Patch("/todos/:id", UpdateTodo)
+	setupAPIV1(app)
 
 	app.Listen(3000)
 
+}
+
+func setupAPIV1(app *fiber.App) {
+	v1 := app.Group("/v1")
+	setupTodosRoutes(v1)
+}
+
+func setupTodosRoutes(grp fiber.Router) {
+	todosRoutes := grp.Group("/todos")
+	todosRoutes.Get("/", GetTodos)
+	todosRoutes.Get("/:id", GetTodo)
+	todosRoutes.Post("/", CreateTodo)
+	todosRoutes.Delete("/:id", DeleteTodo)
+	todosRoutes.Patch("/:id", UpdateTodo)
 }
 
 // UpdateTodo will update the information to todo
@@ -65,7 +75,7 @@ func UpdateTodo(ctx *fiber.Ctx) {
 		return
 	}
 
-	var todo Todo
+	var todo *Todo
 
 	for _, t := range todos {
 		if t.ID == id {
@@ -74,7 +84,7 @@ func UpdateTodo(ctx *fiber.Ctx) {
 		}
 	}
 
-	if todo.ID == 0 {
+	if todo == nil {
 		ctx.Status(fiber.StatusNotFound)
 		return
 	}
@@ -115,6 +125,34 @@ func DeleteTodo(ctx *fiber.Ctx) {
 
 }
 
+// CreateTodo will crate the todo to the list
+func CreateTodo(ctx *fiber.Ctx) {
+	type request struct {
+		Name string `json:"name"`
+	}
+
+	var body request
+
+	err := ctx.BodyParser(&body)
+	if err != nil {
+		ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "cannot parse json",
+		})
+		return
+	}
+
+	todo := &Todo{
+		ID:        len(todos) + 1,
+		Name:      body.Name,
+		Completed: false,
+	}
+
+	todos = append(todos, todo)
+
+	ctx.Status(fiber.StatusCreated).JSON(todos)
+
+}
+
 // GetTodo will get only one record from id
 func GetTodo(ctx *fiber.Ctx) {
 	paramID := ctx.Params("id")
@@ -134,34 +172,6 @@ func GetTodo(ctx *fiber.Ctx) {
 	}
 
 	ctx.Status(fiber.StatusNotFound)
-}
-
-// CreateTodo will crate the todo to the list
-func CreateTodo(ctx *fiber.Ctx) {
-	type request struct {
-		Name string `json:"name"`
-	}
-
-	var body request
-
-	err := ctx.BodyParser(&body)
-	if err != nil {
-		ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"error": "cannot parse json",
-		})
-		return
-	}
-
-	todo := Todo{
-		ID:        len(todos) + 1,
-		Name:      body.Name,
-		Completed: false,
-	}
-
-	todos = append(todos, todo)
-
-	ctx.Status(fiber.StatusCreated).JSON(todos)
-
 }
 
 // GetTodos will get all todos
